@@ -136,6 +136,23 @@
             background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%);
         }
 
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+            transform: scale(1.05);
+        }
+
         .match-card {
             background: white;
             border-radius: 10px;
@@ -147,7 +164,7 @@
 
         .match-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
         }
@@ -156,6 +173,12 @@
             font-size: 1.2rem;
             font-weight: bold;
             color: #667eea;
+        }
+
+        .match-actions {
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
         .participants {
@@ -247,6 +270,41 @@
             color: #667eea;
         }
 
+        .delete-match-form {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .delete-match-form.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .delete-match-form input {
+            width: 200px;
+            margin-right: 10px;
+            display: inline-block;
+        }
+
+        .delete-match-form .btn {
+            margin: 0;
+        }
+
         @media (max-width: 768px) {
             .nav-tabs {
                 flex-wrap: wrap;
@@ -267,6 +325,22 @@
             
             .header h1 {
                 font-size: 2rem;
+            }
+
+            .match-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .match-actions {
+                align-self: flex-end;
+            }
+
+            .delete-match-form input {
+                width: 100%;
+                margin-bottom: 10px;
+                margin-right: 0;
             }
         }
     </style>
@@ -611,6 +685,67 @@
             updateStats();
         }
 
+        function showDeleteForm(matchId) {
+            // Nasconde tutti gli altri form di eliminazione aperti
+            document.querySelectorAll('.delete-match-form').forEach(form => {
+                form.classList.remove('show');
+            });
+            
+            // Mostra il form per questa partita
+            const deleteForm = document.getElementById(`delete-form-${matchId}`);
+            deleteForm.classList.add('show');
+        }
+
+        function hideDeleteForm(matchId) {
+            const deleteForm = document.getElementById(`delete-form-${matchId}`);
+            deleteForm.classList.remove('show');
+            // Pulisce il campo password
+            const passwordInput = document.getElementById(`delete-password-${matchId}`);
+            passwordInput.value = '';
+        }
+
+        function deleteMatch(matchId) {
+            const passwordInput = document.getElementById(`delete-password-${matchId}`);
+            const password = passwordInput.value;
+
+            if (password !== adminPassword) {
+                showAlert('bookingAlert', 'Password non corretta!', 'error');
+                passwordInput.value = '';
+                return;
+            }
+
+            // Elimina tutte le prenotazioni associate alla partita
+            bookings = bookings.filter(booking => booking.matchId !== matchId);
+            
+            // Elimina la partita
+            matches = matches.filter(match => match.id !== matchId);
+
+            // Elimina da Firebase
+            db.collection('matches').doc(matchId).delete()
+                .then(() => {
+                    console.log('Partita eliminata da Firebase');
+                })
+                .catch((error) => {
+                    console.error('Errore nell\'eliminare la partita:', error);
+                });
+
+            // Elimina le prenotazioni da Firebase
+            db.collection('bookings').where('matchId', '==', matchId).get()
+                .then((querySnapshot) => {
+                    querySnapshot.forEach((doc) => {
+                        doc.ref.delete();
+                    });
+                })
+                .catch((error) => {
+                    console.error('Errore nell\'eliminare le prenotazioni:', error);
+                });
+
+            showAlert('bookingAlert', 'Partita eliminata con successo!');
+            loadMatches();
+            loadMatchesForBooking();
+            updateStats();
+        }
+
         function loadMatches() {
             const matchesList = document.getElementById('matchesList');
             
@@ -630,8 +765,13 @@
                             <div class="match-date">
                                 ${matchDate.toLocaleDateString('it-IT')} alle ${matchDate.toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'})}
                             </div>
-                            <div style="font-weight: bold; color: ${availableSlots > 0 ? '#28a745' : '#dc3545'}">
-                                ${availableSlots} posti liberi
+                            <div class="match-actions">
+                                <div style="font-weight: bold; color: ${availableSlots > 0 ? '#28a745' : '#dc3545'}">
+                                    ${availableSlots} posti liberi
+                                </div>
+                                <button class="delete-btn" onclick="showDeleteForm('${match.id}')" title="Elimina partita">
+                                    🗑️
+                                </button>
                             </div>
                         </div>
                         <div><strong>Luogo:</strong> ${match.location}</div>
@@ -647,6 +787,15 @@
                         </div>
                         
                         ${availableSlots === 0 ? '<div style="color: #dc3545; font-weight: bold; margin-top: 10px;">PARTITA COMPLETA</div>' : ''}
+                        
+                        <div id="delete-form-${match.id}" class="delete-match-form">
+                            <div style="margin-bottom: 10px; font-weight: bold; color: #856404;">
+                                ⚠️ Inserisci la password per eliminare questa partita:
+                            </div>
+                            <input type="password" id="delete-password-${match.id}" placeholder="Password amministratore">
+                            <button class="btn btn-danger" onclick="deleteMatch('${match.id}')">Elimina</button>
+                            <button class="btn" onclick="hideDeleteForm('${match.id}')">Annulla</button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -816,6 +965,14 @@
             document.getElementById('codesPasswordInput').addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     authenticateCodes();
+                }
+            });
+
+            // Gestione invio con Enter per le password di eliminazione partite
+            document.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.target.id.startsWith('delete-password-')) {
+                    const matchId = e.target.id.replace('delete-password-', '');
+                    deleteMatch(matchId);
                 }
             });
         });
