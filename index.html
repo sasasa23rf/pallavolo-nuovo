@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Prenotazioni Pallavolo</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.7.1/firebase-firestore-compat.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -741,21 +741,45 @@
                 return;
             }
 
-            // Salva localmente
+            console.log('Tentativo di salvare:', code, name);
+
+            // Salva localmente prima per feedback immediato
             codeNames[code] = name;
             
+            // Verifica che Firebase sia inizializzato
+            if (!db) {
+                console.error('Database Firebase non inizializzato');
+                showAlert('codesLoginAlert', 'Errore: Database non inizializzato!', 'error');
+                return;
+            }
+            
             // Salva su Firebase
-            db.collection('nomi').doc(code).set({
+            const docData = {
                 code: code,
                 name: name,
                 assignedDate: new Date().toISOString()
-            }).then(() => {
+            };
+            
+            console.log('Salvando su Firebase:', docData);
+            
+            db.collection('nomi').doc(code).set(docData).then(() => {
                 console.log('Nome salvato su Firebase per il codice:', code);
                 displayCodes();
                 showAlert('codesLoginAlert', `Nome "${name}" assegnato al codice ${code}!`);
             }).catch((error) => {
-                console.error('Errore nel salvare il nome:', error);
-                showAlert('codesLoginAlert', 'Errore nel salvare il nome!', 'error');
+                console.error('Errore dettagliato nel salvare il nome:', error);
+                console.error('Codice errore:', error.code);
+                console.error('Messaggio errore:', error.message);
+                
+                // Rimuovi dal local storage se il salvataggio fallisce
+                delete codeNames[code];
+                displayCodes();
+                
+                if (error.code === 'permission-denied') {
+                    showAlert('codesLoginAlert', 'Errore di permessi Firebase! Controlla le regole.', 'error');
+                } else {
+                    showAlert('codesLoginAlert', `Errore nel salvare: ${error.message}`, 'error');
+                }
             });
         }
 
@@ -805,18 +829,30 @@
         }
 
         function loadCodeNamesFromFirebase() {
+            console.log('Tentativo di caricamento nomi codici da Firebase...');
+            
             db.collection('nomi').get().then((querySnapshot) => {
                 codeNames = {};
+                console.log('Query eseguita, documenti trovati:', querySnapshot.size);
+                
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
+                    console.log('Documento caricato:', doc.id, data);
                     codeNames[data.code] = data.name;
                 });
+                
                 console.log('Nomi codici caricati da Firebase:', Object.keys(codeNames).length);
                 if (document.getElementById('codesPanel').style.display !== 'none') {
                     displayCodes();
                 }
             }).catch((error) => {
-                console.error('Errore nel caricare i nomi dei codici:', error);
+                console.error('Errore dettagliato nel caricare i nomi dei codici:', error);
+                console.error('Codice errore:', error.code);
+                console.error('Messaggio errore:', error.message);
+                
+                // Tenta di verificare la connessione Firebase
+                console.log('Verifica configurazione Firebase:', firebaseConfig);
+                console.log('Database inizializzato:', !!db);
             });
         }
 
