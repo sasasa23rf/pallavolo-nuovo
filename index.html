@@ -935,65 +935,6 @@
             passwordInput.value = '';
         }
 
-        function generateTeams(matchId) {
-            const participants = bookings.filter(b => b.matchId === matchId);
-            
-            if (participants.length !== 13) {
-                showAlert('bookingAlert', 'Errore: devono esserci esattamente 13 giocatori!', 'error');
-                return;
-            }
-
-            // Mescola casualmente i giocatori
-            const shuffledPlayers = [...participants].sort(() => Math.random() - 0.5);
-            
-            // Dividi in 2 squadre: 7 e 6 giocatori
-            const team1 = shuffledPlayers.slice(0, 7);
-            const team2 = shuffledPlayers.slice(7, 13);
-
-            // Trova la card della partita
-            const matchCard = document.querySelector(`#delete-form-${matchId}`).closest('.match-card');
-            
-            // Rimuovi eventuali squadre precedenti
-            const existingTeams = matchCard.querySelector('.teams-display');
-            if (existingTeams) {
-                existingTeams.remove();
-            }
-
-            // Crea il display delle squadre
-            const teamsHTML = `
-                <div class="teams-display" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px; border: 2px solid #28a745;">
-                    <h4 style="text-align: center; color: #28a745; margin-bottom: 15px;">🏐 SQUADRE GENERATE 🏐</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
-                            <h5 style="color: #007bff; margin-bottom: 10px;">SQUADRA 1 (7 giocatori)</h5>
-                            ${team1.map((player, index) => `
-                                <div style="padding: 5px; margin: 3px 0; background: #e3f2fd; border-radius: 4px;">
-                                    ${index + 1}. ${player.playerName}
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
-                            <h5 style="color: #dc3545; margin-bottom: 10px;">SQUADRA 2 (6 giocatori)</h5>
-                            ${team2.map((player, index) => `
-                                <div style="padding: 5px; margin: 3px 0; background: #ffebee; border-radius: 4px;">
-                                    ${index + 1}. ${player.playerName}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <div style="text-align: center; margin-top: 15px;">
-                        <button class="btn" onclick="generateTeams('${matchId}')" style="margin-right: 10px;">🔄 Rigenera Squadre</button>
-                        <button class="btn" onclick="this.closest('.teams-display').remove()" style="background: #6c757d;">❌ Nascondi</button>
-                    </div>
-                </div>
-            `;
-
-            // Aggiungi le squadre alla card
-            matchCard.insertAdjacentHTML('beforeend', teamsHTML);
-            
-            showAlert('bookingAlert', 'Squadre generate con successo!');
-        }
-
         function deleteMatch(matchId) {
             const passwordInput = document.getElementById(`delete-password-${matchId}`);
             const password = passwordInput.value;
@@ -1059,11 +1000,6 @@
                                 <div style="font-weight: bold; color: ${availableSlots > 0 ? '#28a745' : '#dc3545'}">
                                     ${availableSlots} posti liberi
                                 </div>
-                                ${availableSlots === 0 ? 
-                                    `<button class="delete-btn" onclick="generateTeams('${match.id}')" title="Genera squadre casuali" style="background: #28a745; margin-right: 5px;">
-                                        ⚽
-                                    </button>` : ''
-                                }
                                 <button class="delete-btn" onclick="showDeleteForm('${match.id}')" title="Elimina partita">
                                     🗑️
                                 </button>
@@ -1080,6 +1016,8 @@
                                 <div class="participant empty-slot">Posto libero</div>
                             `).join('')}
                         </div>
+                        
+                       
                         
                         <div id="delete-form-${match.id}" class="delete-match-form">
                             <div style="margin-bottom: 10px; font-weight: bold; color: #856404;">
