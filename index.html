@@ -203,18 +203,87 @@
 
         .codes-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            grid-template-columns: 1fr;
             gap: 10px;
             margin-top: 20px;
         }
 
         .code-item {
             background: #f8f9fa;
-            padding: 10px;
-            text-align: center;
-            border-radius: 5px;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .code-number {
             font-family: monospace;
             font-weight: bold;
+            font-size: 1.1rem;
+            color: #667eea;
+            min-width: 120px;
+        }
+
+        .code-name-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 300px;
+        }
+
+        .code-name-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .code-name-display {
+            flex: 1;
+            font-weight: 500;
+            color: #28a745;
+            min-height: 20px;
+        }
+
+        .code-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .code-btn-save {
+            background: #28a745;
+            color: white;
+        }
+
+        .code-btn-save:hover {
+            background: #218838;
+        }
+
+        .code-btn-edit {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .code-btn-edit:hover {
+            background: #e0a800;
+        }
+
+        .code-btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .code-btn-delete:hover {
+            background: #c82333;
         }
 
         .alert {
@@ -341,6 +410,15 @@
                 width: 100%;
                 margin-bottom: 10px;
                 margin-right: 0;
+            }
+
+            .code-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .code-name-section {
+                min-width: auto;
             }
         }
     </style>
@@ -481,8 +559,8 @@
             <div id="codesPanel" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <div>
-                        <h2>Codici di Accesso</h2>
-                        <p>50 codici numerici a 10 cifre per la registrazione dei giocatori:</p>
+                        <h2>Gestione Codici di Accesso</h2>
+                        <p>50 codici numerici a 10 cifre - Assegna i nomi ai giocatori:</p>
                     </div>
                     <button class="btn btn-danger" onclick="logoutCodes()">Logout</button>
                 </div>
@@ -512,6 +590,7 @@
         // Dati locali per demo (rimuovi quando usi Firebase)
         let matches = [];
         let bookings = [];
+        let codeNames = {}; // Nuovo oggetto per memorizzare i nomi dei codici
         let isAdminAuthenticated = false;
         const adminPassword = "palestra123456789";
         
@@ -628,19 +707,125 @@
             return Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
         }
 
+        // NUOVE FUNZIONI PER GESTIONE NOMI CODICI
         function displayCodes() {
             const codesGrid = document.getElementById('codesGrid');
-            codesGrid.innerHTML = validCodes.map(code => 
-                `<div class="code-item">${code}</div>`
-            ).join('');
+            codesGrid.innerHTML = validCodes.map(code => {
+                const assignedName = codeNames[code] || '';
+                const isAssigned = assignedName.length > 0;
+                
+                return `
+                    <div class="code-item">
+                        <div class="code-number">${code}</div>
+                        <div class="code-name-section">
+                            ${isAssigned ? 
+                                `<div class="code-name-display">${assignedName}</div>
+                                 <button class="code-btn code-btn-edit" onclick="editCodeName('${code}')">✏️</button>
+                                 <button class="code-btn code-btn-delete" onclick="deleteCodeName('${code}')">🗑️</button>` 
+                                : 
+                                `<input type="text" class="code-name-input" id="input-${code}" placeholder="Nome giocatore..." maxlength="50">
+                                 <button class="code-btn code-btn-save" onclick="saveCodeName('${code}')">💾</button>`
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function saveCodeName(code) {
+            const inputElement = document.getElementById(`input-${code}`);
+            const name = inputElement.value.trim();
+            
+            if (!name) {
+                showAlert('codesLoginAlert', 'Inserisci un nome valido!', 'error');
+                return;
+            }
+
+            // Salva localmente
+            codeNames[code] = name;
+            
+            // Salva su Firebase
+            db.collection('nomi').doc(code).set({
+                code: code,
+                name: name,
+                assignedDate: new Date().toISOString()
+            }).then(() => {
+                console.log('Nome salvato su Firebase per il codice:', code);
+                displayCodes();
+                showAlert('codesLoginAlert', `Nome "${name}" assegnato al codice ${code}!`);
+            }).catch((error) => {
+                console.error('Errore nel salvare il nome:', error);
+                showAlert('codesLoginAlert', 'Errore nel salvare il nome!', 'error');
+            });
+        }
+
+        function editCodeName(code) {
+            const currentName = codeNames[code] || '';
+            
+            // Trova il div della riga del codice e sostituisci il contenuto della sezione nome
+            const codeItems = document.querySelectorAll('.code-item');
+            codeItems.forEach(item => {
+                const codeNumber = item.querySelector('.code-number').textContent;
+                if (codeNumber === code) {
+                    const nameSection = item.querySelector('.code-name-section');
+                    nameSection.innerHTML = `
+                        <input type="text" class="code-name-input" id="input-${code}" value="${currentName}" maxlength="50">
+                        <button class="code-btn code-btn-save" onclick="saveCodeName('${code}')">💾</button>
+                        <button class="code-btn" onclick="cancelEditCodeName('${code}')">❌</button>
+                    `;
+                    // Focus sul campo di input
+                    setTimeout(() => {
+                        document.getElementById(`input-${code}`).focus();
+                    }, 100);
+                }
+            });
+        }
+
+        function cancelEditCodeName(code) {
+            displayCodes();
+        }
+
+        function deleteCodeName(code) {
+            if (!confirm(`Sei sicuro di voler rimuovere il nome assegnato al codice ${code}?`)) {
+                return;
+            }
+
+            // Rimuovi localmente
+            delete codeNames[code];
+            
+            // Rimuovi da Firebase
+            db.collection('nomi').doc(code).delete().then(() => {
+                console.log('Nome rimosso da Firebase per il codice:', code);
+                displayCodes();
+                showAlert('codesLoginAlert', `Nome rimosso dal codice ${code}!`);
+            }).catch((error) => {
+                console.error('Errore nel rimuovere il nome:', error);
+                showAlert('codesLoginAlert', 'Errore nel rimuovere il nome!', 'error');
+            });
+        }
+
+        function loadCodeNamesFromFirebase() {
+            db.collection('nomi').get().then((querySnapshot) => {
+                codeNames = {};
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    codeNames[data.code] = data.name;
+                });
+                console.log('Nomi codici caricati da Firebase:', Object.keys(codeNames).length);
+                if (document.getElementById('codesPanel').style.display !== 'none') {
+                    displayCodes();
+                }
+            }).catch((error) => {
+                console.error('Errore nel caricare i nomi dei codici:', error);
+            });
         }
 
         function copyCodes() {
             const codesText = validCodes.join('\n');
             navigator.clipboard.writeText(codesText).then(() => {
-                showAlert('adminAlert', 'Codici copiati negli appunti!');
+                showAlert('codesLoginAlert', 'Codici copiati negli appunti!');
             }).catch(() => {
-                showAlert('adminAlert', 'Errore nella copia dei codici', 'error');
+                showAlert('codesLoginAlert', 'Errore nella copia dei codici', 'error');
             });
         }
 
@@ -947,6 +1132,9 @@
                 console.error('Errore nel caricare le prenotazioni:', error);
                 showAlert('bookingAlert', 'Errore di connessione. Riprova più tardi.', 'error');
             });
+
+            // Carica i nomi dei codici da Firebase
+            loadCodeNamesFromFirebase();
         }
 
         // Inizializzazione
@@ -972,6 +1160,14 @@
                 if (e.key === 'Enter' && e.target.id.startsWith('delete-password-')) {
                     const matchId = e.target.id.replace('delete-password-', '');
                     deleteMatch(matchId);
+                }
+            });
+
+            // Gestione invio con Enter per i campi di input dei nomi dei codici
+            document.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && e.target.id.startsWith('input-')) {
+                    const code = e.target.id.replace('input-', '');
+                    saveCodeName(code);
                 }
             });
         });
