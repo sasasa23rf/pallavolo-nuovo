@@ -203,93 +203,18 @@
 
         .codes-grid {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
             margin-top: 20px;
         }
 
         .code-item {
             background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #e1e5e9;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .code-number {
+            padding: 10px;
+            text-align: center;
+            border-radius: 5px;
             font-family: monospace;
             font-weight: bold;
-            font-size: 16px;
-            background: #667eea;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            min-width: 120px;
-            text-align: center;
-        }
-
-        .code-name-section {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .code-name-input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #e1e5e9;
-            border-radius: 6px;
-            font-size: 14px;
-        }
-
-        .code-name-display {
-            flex: 1;
-            font-weight: 600;
-            color: #28a745;
-            padding: 8px 12px;
-            background: #d4edda;
-            border-radius: 6px;
-            border: 1px solid #c3e6cb;
-        }
-
-        .code-btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-        }
-
-        .code-btn-save {
-            background: #28a745;
-            color: white;
-        }
-
-        .code-btn-save:hover {
-            background: #218838;
-        }
-
-        .code-btn-edit {
-            background: #ffc107;
-            color: #212529;
-        }
-
-        .code-btn-edit:hover {
-            background: #e0a800;
-        }
-
-        .code-btn-delete {
-            background: #dc3545;
-            color: white;
-        }
-
-        .code-btn-delete:hover {
-            background: #c82333;
         }
 
         .alert {
@@ -416,25 +341,6 @@
                 width: 100%;
                 margin-bottom: 10px;
                 margin-right: 0;
-            }
-
-            .code-item {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 10px;
-            }
-
-            .code-number {
-                min-width: auto;
-            }
-
-            .code-name-section {
-                flex-direction: column;
-                gap: 8px;
-            }
-
-            .code-name-input, .code-name-display {
-                flex: none;
             }
         }
     </style>
@@ -606,7 +512,6 @@
         // Dati locali per demo (rimuovi quando usi Firebase)
         let matches = [];
         let bookings = [];
-        let codeAssignments = {}; // AGGIUNTO: oggetto per memorizzare le associazioni codice-nome
         let isAdminAuthenticated = false;
         const adminPassword = "palestra123456789";
         
@@ -723,119 +628,19 @@
             return Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
         }
 
-        // AGGIUNTO: Funzione per visualizzare i codici con gestione nomi
         function displayCodes() {
             const codesGrid = document.getElementById('codesGrid');
-            codesGrid.innerHTML = validCodes.map(code => {
-                const assignedName = codeAssignments[code] || '';
-                const isAssigned = assignedName !== '';
-                
-                return `
-                    <div class="code-item">
-                        <div class="code-number">${code}</div>
-                        <div class="code-name-section">
-                            ${isAssigned ? 
-                                `<div class="code-name-display" id="name-display-${code}">${assignedName}</div>
-                                 <button class="code-btn code-btn-edit" onclick="editCodeName('${code}')">Modifica</button>
-                                 <button class="code-btn code-btn-delete" onclick="deleteCodeName('${code}')">Rimuovi</button>` 
-                                :
-                                `<input type="text" class="code-name-input" id="name-input-${code}" placeholder="Inserisci nome giocatore..." maxlength="50">
-                                 <button class="code-btn code-btn-save" onclick="saveCodeName('${code}')">Salva</button>`
-                            }
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            codesGrid.innerHTML = validCodes.map(code => 
+                `<div class="code-item">${code}</div>`
+            ).join('');
         }
 
-        // MODIFICATO: Funzione copyCodes per includere i nomi
         function copyCodes() {
-            const codesWithNames = validCodes.map(code => {
-                const assignedName = codeAssignments[code] || 'Non assegnato';
-                return `${code} - ${assignedName}`;
-            });
-            const codesText = codesWithNames.join('\n');
+            const codesText = validCodes.join('\n');
             navigator.clipboard.writeText(codesText).then(() => {
                 showAlert('adminAlert', 'Codici copiati negli appunti!');
             }).catch(() => {
                 showAlert('adminAlert', 'Errore nella copia dei codici', 'error');
-            });
-        }
-
-        // AGGIUNTO: Funzione per salvare il nome associato al codice
-        function saveCodeName(code) {
-            const nameInput = document.getElementById(`name-input-${code}`);
-            const name = nameInput.value.trim();
-            
-            if (!name) {
-                showAlert('adminAlert', 'Inserisci un nome valido!', 'error');
-                return;
-            }
-            
-            // Verifica se il nome è già assegnato ad un altro codice
-            const existingCode = Object.keys(codeAssignments).find(c => 
-                codeAssignments[c].toLowerCase() === name.toLowerCase() && c !== code
-            );
-            
-            if (existingCode) {
-                showAlert('adminAlert', `Il nome "${name}" è già assegnato al codice ${existingCode}!`, 'error');
-                return;
-            }
-            
-            codeAssignments[code] = name;
-            
-            // Salva su Firebase
-            db.collection('codeAssignments').doc(code).set({
-                code: code,
-                name: name,
-                assignedDate: new Date().toISOString()
-            }).then(() => {
-                console.log('Assegnazione codice salvata su Firebase');
-                displayCodes();
-                showAlert('adminAlert', `Codice ${code} assegnato a ${name}!`);
-            }).catch((error) => {
-                console.error('Errore nel salvare l\'assegnazione:', error);
-                showAlert('adminAlert', 'Errore nel salvare l\'assegnazione', 'error');
-            });
-        }
-
-        // AGGIUNTO: Funzione per modificare il nome associato
-        function editCodeName(code) {
-            const currentName = codeAssignments[code];
-            const nameDisplay = document.getElementById(`name-display-${code}`);
-            
-            // Sostituisce il display con un input per la modifica
-            nameDisplay.parentElement.innerHTML = `
-                <input type="text" class="code-name-input" id="name-input-${code}" value="${currentName}" maxlength="50">
-                <button class="code-btn code-btn-save" onclick="saveCodeName('${code}')">Salva</button>
-                <button class="code-btn code-btn-edit" onclick="cancelEditCodeName('${code}')">Annulla</button>
-            `;
-            
-            // Focus sull'input
-            document.getElementById(`name-input-${code}`).focus();
-        }
-
-        // AGGIUNTO: Funzione per annullare la modifica
-        function cancelEditCodeName(code) {
-            displayCodes();
-        }
-
-        // AGGIUNTO: Funzione per eliminare l'associazione nome-codice
-        function deleteCodeName(code) {
-            if (!confirm(`Sei sicuro di voler rimuovere l'assegnazione del codice ${code}?`)) {
-                return;
-            }
-            
-            delete codeAssignments[code];
-            
-            // Rimuovi da Firebase
-            db.collection('codeAssignments').doc(code).delete().then(() => {
-                console.log('Assegnazione codice rimossa da Firebase');
-                displayCodes();
-                showAlert('adminAlert', `Assegnazione del codice ${code} rimossa!`);
-            }).catch((error) => {
-                console.error('Errore nel rimuovere l\'assegnazione:', error);
-                showAlert('adminAlert', 'Errore nel rimuovere l\'assegnazione', 'error');
             });
         }
 
@@ -1089,12 +894,10 @@
             document.getElementById('availableSlots').textContent = totalSlotsAvailable;
         }
 
-        // MODIFICATO: Aggiunte le assegnazioni codici alla cancellazione
         function clearAllData() {
             if (confirm('Sei sicuro di voler cancellare tutti i dati? Questa operazione non può essere annullata.')) {
                 matches = [];
                 bookings = [];
-                codeAssignments = {};
                 
                 // Cancella da Firebase
                 db.collection('matches').get().then(snapshot => {
@@ -1103,19 +906,14 @@
                 db.collection('bookings').get().then(snapshot => {
                     snapshot.forEach(doc => doc.ref.delete());
                 });
-                db.collection('codeAssignments').get().then(snapshot => {
-                    snapshot.forEach(doc => doc.ref.delete());
-                });
                 
                 showAlert('adminAlert', 'Tutti i dati sono stati cancellati!');
                 updateStats();
                 loadMatches();
                 loadMatchesForBooking();
-                displayCodes();
             }
         }
 
-        // MODIFICATO: Aggiunto caricamento delle assegnazioni codici da Firebase
         function loadDataFromFirebase() {
             // Mostra un indicatore di caricamento
             console.log('Caricando dati da Firebase...');
@@ -1149,21 +947,6 @@
                 console.error('Errore nel caricare le prenotazioni:', error);
                 showAlert('bookingAlert', 'Errore di connessione. Riprova più tardi.', 'error');
             });
-
-            // AGGIUNTO: Carica assegnazioni codici da Firebase
-            db.collection('codeAssignments').get().then((querySnapshot) => {
-                codeAssignments = {};
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    codeAssignments[data.code] = data.name;
-                });
-                console.log('Assegnazioni codici caricate da Firebase:', Object.keys(codeAssignments).length);
-                if (document.getElementById('codesPanel').style.display !== 'none') {
-                    displayCodes();
-                }
-            }).catch((error) => {
-                console.error('Errore nel caricare le assegnazioni codici:', error);
-            });
         }
 
         // Inizializzazione
@@ -1189,14 +972,6 @@
                 if (e.key === 'Enter' && e.target.id.startsWith('delete-password-')) {
                     const matchId = e.target.id.replace('delete-password-', '');
                     deleteMatch(matchId);
-                }
-            });
-
-            // AGGIUNTO: Gestione invio con Enter per i campi nome codice
-            document.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && e.target.id.startsWith('name-input-')) {
-                    const code = e.target.id.replace('name-input-', '');
-                    saveCodeName(code);
                 }
             });
         });
